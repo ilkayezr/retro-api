@@ -109,7 +109,7 @@ async function assignIncidentToSelf(incidentId,userId,role) {
     SET assigned_to = $1,
         status = 'assigned',
         updated_at = NOW()
-    WHERE id = $2
+    WHERE id = $2 AND status = 'pending'
     RETURNING *
 
     `
@@ -125,6 +125,11 @@ async function assignIncidentToSelf(incidentId,userId,role) {
     })
     } catch (e) {
         console.error("incident log error:",e)
+    }
+    if(!updateResult.rows[0]){
+        const error = new Error("Bu arıza artık atanamaz")
+        error.statusCode = 409
+        throw error
     }
 
     return updateResult.rows[0]
