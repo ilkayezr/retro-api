@@ -48,10 +48,13 @@ async function getIncidents(userId, role) {
 async function getIncidentById(incidentId, userId, role) {
 
     const query = `
-    SELECT * FROM incidents
-    WHERE id = $1`
+    SELECT incidents. *,hotels.name AS hotel_name, users.full_name AS technician_name 
+    FROM incidents
+    JOIN hotels ON incidents.hotel_id = hotels.id
+    LEFT JOIN users ON incidents.assigned_to = users.id
+    WHERE incidents.id = $1`
 
-    const result = await pool.query(query,[incidentId])
+    const result = await pool.query(query,[incidentId]) 
     const incident = result.rows[0]
 
     if(!incident){
@@ -330,54 +333,111 @@ async function createIncidentLog(data) {
 
 
 
-async function getActiveIncidents(userId,userRole) {
+async function getActiveIncidents(userId,userRole,page,limit) {
+
+    const offset = (page - 1) * limit
+
+    const countQuery = `
+    SELECT COUNT(*) FROM incidents
+    WHERE status IN ('pending','assigned','in_progress')
+    `
+    const countResult = await pool.query(countQuery)
+    const total = parseInt(countResult.rows[0].count,10)
+    const totalPages = Math.ceil(total/limit) 
 
     const adminQuery = `
-    SELECT * FROM incidents
-    WHERE status IN ('pending','assigned','in_progress')
-    ORDER BY created_at DESC`
+    SELECT incidents. *, hotels.name AS hotel_name , users.full_name AS technician_name
+    FROM incidents
+    JOIN hotels ON incidents.hotel_id = hotels.id
+    LEFT JOIN users ON incidents.assigned_to = users.id
+    WHERE incidents.status IN ('pending','assigned','in_progress') 
+    ORDER BY incidents.created_at DESC
+    LIMIT $1 OFFSET $2`
 
     if(userRole === "admin"){
-        const result = await pool.query(adminQuery)
-        return result.rows
+        const dataResult = await pool.query(adminQuery,[limit,offset]) 
+
+        return{
+            data : dataResult.rows,
+            total,
+            page,
+            totalPages
+        }
     }
 
     const techQuery = `
-    SELECT * FROM incidents
-    WHERE status = 'pending'
+    SELECT incidents. *, hotels.name AS hotel_name , users.full_name AS technician_name
+    FROM incidents
+    JOIN hotels ON incidents.hotel_id = hotels.id
+    LEFT JOIN users ON incidents.assigned_to = users.id
+    WHERE incidents.status = 'pending'
     OR (assigned_to = $1 AND status IN('assigned','in_progress'))
-    ORDER BY created_at DESC`
+    ORDER BY incidents.created_at DESC
+    LIMIT $2 OFFSET $3`
 
     if(userRole === "technician"){
-        const result = await pool.query(techQuery,[userId])
-        return result.rows
+        const dataResult = await pool.query(techQuery,[userId,limit,offset])
+        return {
+            data : dataResult.rows,
+            total,
+            page,
+            totalPages
+        }
     }
 
     throw new Error("Geçersiz kullanıcı rolü")
 }
 
-async function getIncidentHistory(userId,userRole) {
-    
+async function getIncidentHistory(userId,userRole,page,limit) {
+
+    const offset = (page-1)*limit
+
+    const countQuery = `
+    SELECT COUNT(*) FROM incidents
+    WHERE status = 'resolved'
+    `
+    const countResult = await pool.query(countQuery)
+    const total = parseInt(countResult.rows[0].count,10)
+    const totalPages = Math.ceil(total/limit)
+
     if(userRole === "admin"){
         const adminQuery =`
-        SELECT * FROM incidents
-        WHERE status = 'resolved'
-        ORDER BY created_at DESC`
+        SELECT incidents. *, hotels.name AS hotel_name, users.full_name AS technician_name
+        FROM incidents
+        JOIN hotels ON incidents.hotel_id = hotels.id
+        LEFT JOIN users ON incidents.assigned_to = users.id
+        WHERE incidents.status = 'resolved'
+        ORDER BY incidents.created_at DESC
+        LIMIT $1 OFFSET $2`
 
-        const result = await pool.query(adminQuery)
-        return result.rows
+        const dataResult = await pool.query(adminQuery,[limit,offset])
+        return {
+            data: dataResult.rows,
+            total,
+            page,
+            totalPages
+        }
     }
 
     if(userRole === "technician"){
 
         const techQuery = `
-        SELECT * FROM incidents
-        WHERE status = 'resolved'
+        SELECT incidents. *, hotels.name AS hotel_name, users.full_name AS technician_name
+        FROM incidents
+        JOIN hotels ON incidents.hotel_id = hotels.id
+        JOIN users ON incidents.assigned_to = users.id
+        WHERE incidents.status = 'resolved'
         AND assigned_to = $1
-        ORDER BY created_at DESC`
+        ORDER BY incidents.created_at DESC
+        LIMIT $2 OFFSET $3`
 
-        const result = await pool.query(techQuery,[userId])
-        return result.rows
+        const dataResult = await pool.query(techQuery,[userId,limit,offset])
+        return {
+            data: dataResult.rows,
+            total,
+            page,
+            totalPages
+        }
     }
 
     throw new Error("Bu işlem için yetkiniz yok")

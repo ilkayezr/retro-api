@@ -169,9 +169,11 @@ async function adminStatus(req,res) {
 async function getActiveIncidents(req,res) {
     const userId = req.user.id
     const userRole = req.user.role
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 10
 
     try {
-        const incident = await incidentService.getActiveIncidents(userId,userRole)
+        const incident = await incidentService.getActiveIncidents(userId,userRole, page, limit)
         return res.status(200).json(incident)
 
     } catch (error) {
@@ -184,9 +186,12 @@ async function getActiveIncidents(req,res) {
 async function getIncidentHistory(req,res) {
     const userId = req.user.id
     const userRole = req.user.role
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 10
+
 
     try {
-        const incidents = await incidentService.getIncidentHistory(userId,userRole)
+        const incidents = await incidentService.getIncidentHistory(userId,userRole, page, limit)
         return res.status(200).json(incidents)
 
     } catch (error) {
