@@ -475,4 +475,14 @@ async function getIncidentsByHotel(userId,userRole,hotelId) {
     throw new Error("Listeleme sırasında hata oluştu")
 }
 
-module.exports = { createIncident, getIncidents, getIncidentById, assignIncidentToSelf,updatedTechnicianStatus,reassignIncident,adminStatus,createIncidentLog,getActiveIncidents,getIncidentHistory,getIncidentsByHotel}
+async function getActiveIncidentsByHotel(hotelId) {
+    const incidentQuery= `
+    SELECT * FROM incidents
+    WHERE hotel_id = $1 AND status IN ('pending', 'assigned','in_progress')
+    ORDER BY created_at DESC
+    `
+    const result = await pool.query(incidentQuery,[hotelId])
+    return result.rows
+}
+
+module.exports = { createIncident, getIncidents, getIncidentById, assignIncidentToSelf,updatedTechnicianStatus,reassignIncident,adminStatus,createIncidentLog,getActiveIncidents,getIncidentHistory,getIncidentsByHotel,getActiveIncidentsByHotel}

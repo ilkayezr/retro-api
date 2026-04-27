@@ -11,4 +11,7 @@ const validate = (schema) => (req,res,next) => {
             message: "Alanlar eksik ya da yanlış dolduruldu"
         })
     }
+    next()
 }
+
+module.exports = {validate}

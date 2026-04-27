@@ -1,39 +1,16 @@
-const whatsappService = require("./whatsapp.service")
-const {parseMessage} = require("./aiService")
+const incidentService = require('../incidents/incident.service')
+const{createSupportAgentRuntime} = require('../ai/ai-runtime')
+const supportAgentRuntime =createSupportAgentRuntime(incidentService)
 
-async function receiveWhatsAppMessage(req,res) {
+async function handleIncomingWhatsappMessage(req,res) {
     try {
-        const entry = req.body.entry[0]
-        const message = entry.changes[0].value.messages[0]
-        const from = message.from
-        const text = message.text.body
-        const hotelId = req.hotelId
-
-        await whatsappService.processIncomingMessage(from, text, hotelId,from)
-
-        return res.status((200)).json({
-            message: "Message received"
-        })
+        const reply = await supportAgentRuntime.handleIncomingMessage({hotel: req.hotel, message: req.body.message})
+        return res.status(200).json(reply)
+        
     } catch (error) {
-        return res.status(500).json({
-            message: "Webhook error"
-        })
+        console.error("ERROR:",error)
+        return res.status(500).json({message:"mesaj işlenirken hata oluştu"})
     }
 }
 
-async function handleIncomingMessage(req, res) {
-    try {
-        const { hotelId, phoneNumber } = req 
-        const text = req.body.text
-        
-        const incident = await parseMessage(text, hotelId, phoneNumber)
-        
-        res.status(201).json({
-            message: incident.message,
-            incident: incident.incident
-        })
-    } catch (error) {
-        res.status(500).json({ message: "Error" })
-    }
-}
-module.exports = { receiveWhatsAppMessage, handleIncomingMessage }
+module.exports = {handleIncomingWhatsappMessage}

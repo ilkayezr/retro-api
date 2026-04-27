@@ -1,6 +1,6 @@
-const pool = require('../db');
+const pool = require('../database/db');
 async function hotelApiKey(req,res,next) {
-    try {
+    try { 
         const apiKey = req.headers['x-api-key']
         if(!apiKey){
             return res.status(401).json({message:"header bulunamadı"})

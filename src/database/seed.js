@@ -51,19 +51,7 @@ async function seed() {
     true
   ])
 
-  const incidentQuery =`
-  INSERT INTO incidents(title, description, priority,status,hotel_id,assigned_to)
-  VALUES ($1,$2,$3,$4,$5,$6)`
-
-  await pool.query(incidentQuery,[
-    "cihaz sorunu",
-    "2. katta cihaz bozuldu",
-    "low",
-    "resolved",
-    2,
-    4
-
-  ])
+ 
 }
 
 module.exports = seed
