@@ -3,8 +3,10 @@ const{createSupportAgentRuntime} = require('../ai/ai-runtime')
 const supportAgentRuntime =createSupportAgentRuntime(incidentService)
 
 async function handleIncomingWhatsappMessage(req,res) {
+    
     try {
-        const reply = await supportAgentRuntime.handleIncomingMessage({hotel: req.hotel, message: req.body.message})
+        const phoneNumber = req.body.phoneNumber
+        const reply = await supportAgentRuntime.handleIncomingMessage({hotel: req.hotel,phoneNumber, message: req.body.message})
         return res.status(200).json(reply)
         
     } catch (error) {

@@ -12,18 +12,20 @@ function createSupportAgentRuntime(incidentService) {
         instructions: buildSupportInstructions,
 
     })
-    async function getOrCreateSession(hotelId) {
-        if(sessionByHotel.has(hotelId)){
-          return sessionByHotel.get(hotelId)  
+    
+    async function getOrCreateSession(conversationKey) {
+        if(sessionByHotel.has(conversationKey)){
+          return sessionByHotel.get(conversationKey)  
         }
 
         const session = new MemorySession()
-        sessionByHotel.set(hotelId,session)
+        sessionByHotel.set(conversationKey,session)
         return session
     }
 
-    async function handleIncomingMessage({hotel,message}){ 
-        const session = await getOrCreateSession(hotel.id)
+    async function handleIncomingMessage({hotel,message,phoneNumber}){ 
+        const conversationKey = `${hotel.id}:${phoneNumber}` 
+        const session = await getOrCreateSession(conversationKey)
         const result = await run (agent, message, {context:{hotel}, session})
         const sonuc = result.finalOutput
 
