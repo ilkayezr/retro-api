@@ -75,17 +75,39 @@ async function getIncidentById(incidentId, userId, role) {
     const result = await pool.query(query,[incidentId]) 
     const incident = result.rows[0]
 
+
     if(!incident){
         return null
     }
     
+    const logQuery = `
+    SELECT
+    il.action,
+    il.note,
+    il.created_at,
+    il.performed_by,
+    u.full_name AS performed_by_name
+    FROM incident_logs il
+    LEFT JOIN users u ON il.performed_by = u.id
+    WHERE il.incident_id = $1
+    AND il.action IN ('self_assigned','admin_assigned','auto_assigned')
+    ORDER BY il.created_at DESC
+    `
+    const logResult = await pool.query(logQuery,[incidentId])
+    
     if (role === "admin"){
-        return incident
+        return {
+            ...incident,
+            assignmentHistory: logResult.rows
+        }
     }
 
     if(role === "technician"){
         if(incident.status === "pending" || incident.assigned_to === userId){
-            return incident
+            return {
+                ...incident,
+                assignmentHistory: logResult.rows
+            }
         }
 
         return null
@@ -274,9 +296,9 @@ async function reassignIncident(userId,role,incidentId,technicianId) {
     try {
         await createIncidentLog({
             incidentId: incidentId,
-            action: "reassigned",
+            action: "admin_assigned",
             performedBy: userId,
-            note: `${incidentResult.assigned_to} -> ${technicianId}`
+            note: `from:${incidentResult.assigned_to || "none"} to:${technicianId}`
         })
     } catch (error) {
         console.error("incident log error:",error)
