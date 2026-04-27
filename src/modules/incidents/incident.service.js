@@ -19,11 +19,29 @@ async function createIncident(data) {
     return result.rows[0]
 }
 
-async function getIncidents(userId, role) {
+async function getIncidents(userId, role, sortBy,order) {
+    const orderDirection = String(order).toLowerCase()==="asc"?"ASC":"DESC"
+    let orderedByClause = `created_at ${orderDirection}`
+
+    if(sortBy === "updated_at"){
+        orderedByClause = `updated_at ${orderDirection}`
+    }
+    if(sortBy === "created_at"){
+        orderedByClause = `created_at ${orderDirection}`
+    }
+    if(sortBy === "priority"){
+        orderedByClause = 
+        `CASE priority
+        WHEN 'high' THEN 3
+        WHEN 'medium' THEN 2
+        WHEN 'low' THEN 1
+        END ${orderDirection}
+        `
+    }
 
     if (role === "admin"){
         const query = `
-        SELECT * FROM incidents ORDER BY created_at DESC`
+        SELECT * FROM incidents ORDER BY ${orderedByClause}`
         const result = await pool.query(query)
 
         return result.rows
@@ -34,7 +52,7 @@ async function getIncidents(userId, role) {
         SELECT * FROM incidents
         WHERE status = 'pending'
         OR assigned_to = $1
-        ORDER BY created_at DESC`
+        ORDER BY ${orderedByClause}`
 
         const result = await pool.query(query, [userId])
         return result.rows

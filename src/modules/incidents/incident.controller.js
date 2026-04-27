@@ -25,11 +25,13 @@ async function getIncidents(req,res) {
 
     const userId = req.user.id
     const role = req.user.role
+    const sortBy = req.query.sortBy || "created_at"
+    const order = req.query.order || "desc"
 
     
     try {
 
-        const incidents = await incidentService.getIncidents(userId, role)
+        const incidents = await incidentService.getIncidents(userId, role, sortBy,order)
         return res.status(200).json(incidents)
         
     } catch (error) {
