@@ -1,5 +1,32 @@
 const pool = require("../../database/db")
 
+const assignmentActions = new Set ([
+    "self_assigned",
+    "admin_assigned",
+    "auto_assigned"
+])
+function solutionLabel(totalMinutes){
+    if(totalMinutes == null){
+        return null
+    }
+    const days = Math.floor(totalMinutes / (24 * 60))
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60)
+    const minutes = totalMinutes % 60
+
+    const parts = []
+    if(days > 0){
+        parts.push(`${days} gün`)
+    }
+    if(hours > 0){
+        parts.push(`${hours} saat`)
+    }
+    if(minutes > 0 || parts.length === 0){
+        parts.push(`${minutes} dakika`)
+    }
+
+    return parts.join(" ")
+}
+
 async function createIncident(data) {
     const query = `
     INSERT INTO incidents (title, description, priority, hotel_id, category)
@@ -90,24 +117,36 @@ async function getIncidentById(incidentId, userId, role) {
     FROM incident_logs il
     LEFT JOIN users u ON il.performed_by = u.id
     WHERE il.incident_id = $1
-    AND il.action IN ('self_assigned','admin_assigned','auto_assigned')
+    AND il.action IN ('self_assigned','admin_assigned','auto_assigned','status_updated')
     ORDER BY il.created_at DESC
     `
     const logResult = await pool.query(logQuery,[incidentId])
+    const logs = logResult.rows
+    const assignmentLogs = logs.filter(log => assignmentActions.has(log.action))
+    const lastAssignedLog = assignmentLogs[0] || null
+    const workStartedLog = logs.find(log => log.action === "status_updated" && log.note === "assigned -> in_progress") || null
+
+    const resolvedLog = logs.find(log => log.action === "status_updated" && log.note === "in_progress -> resolved") || null
+
+    const resolutionMinutes = workStartedLog && resolvedLog ? Math.max(0,Math.round((new Date(resolvedLog.created_at) - new Date(workStartedLog.created_at))/60000 )) : null
     
+    const incidentDetail = {
+        ...incident,
+        assignmentHistory: assignmentLogs,
+        createdAt: incident.created_at,
+        lastAssignedAt: lastAssignedLog ? lastAssignedLog.created_at : null,
+        workStartedAt: workStartedLog ? workStartedLog.created_at : null,
+        resolvedAt: resolvedLog ? resolvedLog.created_at : null,
+        resolutionMinutes,
+        resolutionLabel: solutionLabel(resolutionMinutes)
+    }
     if (role === "admin"){
-        return {
-            ...incident,
-            assignmentHistory: logResult.rows
-        }
+        return incidentDetail
     }
 
     if(role === "technician"){
         if(incident.status === "pending" || incident.assigned_to === userId){
-            return {
-                ...incident,
-                assignmentHistory: logResult.rows
-            }
+            return incidentDetail
         }
 
         return null
