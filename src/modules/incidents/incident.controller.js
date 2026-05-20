@@ -98,10 +98,10 @@ async function updatedTechnicianStatus(req,res) {
     const userId = req.user.id
     const role = req.user.role
     const incidentId = Number(req.params.id)
-    const {status} = result.data
+    const {status, note} = result.data
 
     try {
-        const updatedIncident = await incidentService.updatedTechnicianStatus(userId,role,incidentId,status)
+        const updatedIncident = await incidentService.updatedTechnicianStatus(userId,role,incidentId,status,note)
 
         return res.status(200).json(updatedIncident)
         

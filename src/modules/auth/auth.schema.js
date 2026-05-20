@@ -7,5 +7,12 @@ const loginSchema = z.object({
     password: z.string().trim().min(6,"Şifre en az 6 karakter olmalı")
 
 })
+const forgotPasswordSchema = z.object({
+    email: z.string().trim().email("Geçerli bir mail adresi giriniz")
+})
+const resetPasswordSchema = z.object({
+    token: z.string().trim().regex(/^\d{6}$/,"Mailinize gönderilen kodu giriniz"),
+    newPassword: z.string().trim().min(6,"Yeni şifre en az 6 karakter olmalı")
+})
 
-module.exports = {loginSchema}
+module.exports = {loginSchema,forgotPasswordSchema,resetPasswordSchema}

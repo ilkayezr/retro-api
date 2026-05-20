@@ -11,7 +11,8 @@ const createIncidentSchema = z.object({
 })
 
 const updatedTechnicianStatusSchema = z.object({
-    status: z.enum(["in_progress","resolved"])
+    status: z.enum(["in_progress","resolved"]),
+    note: z.string().trim().min(1).optional()
 })
 
 const reassignschema = z.object({

@@ -23,18 +23,18 @@ async function seed() {
   ])
 
   await pool.query(userQuery,[
-    "Tech Deneme",
+    "Umut SAyalı",
     "03333333332",
-    "tech2",
+    "umutsayali",
     techPasswordHash,
     "technician",
     true
   ])
 
   await pool.query(userQuery,[
-    "teknisyen tech",
+    "İlkay Ezer",
     "06677733332",
-    "teknisyen_07",
+    "ilkayezr",
     teknPasswordHash,
     "technician",
     true

@@ -117,22 +117,26 @@ async function getIncidentById(incidentId, userId, role) {
     FROM incident_logs il
     LEFT JOIN users u ON il.performed_by = u.id
     WHERE il.incident_id = $1
-    AND il.action IN ('self_assigned','admin_assigned','auto_assigned','status_updated')
+    AND il.action IN ('self_assigned','admin_assigned','auto_assigned','status_updated','admin_status_update')
     ORDER BY il.created_at DESC
     `
     const logResult = await pool.query(logQuery,[incidentId])
     const logs = logResult.rows
     const assignmentLogs = logs.filter(log => assignmentActions.has(log.action))
     const lastAssignedLog = assignmentLogs[0] || null
-    const workStartedLog = logs.find(log => log.action === "status_updated" && log.note === "assigned -> in_progress") || null
+    const transitionLogs = logs.filter(log =>
+        (log.action === "status_updated" || log.action === "admin_status_update")
+        && typeof log.note === "string"
+    )
+    const workStartedLog = transitionLogs.find(log => log.note.includes("-> in_progress")) || null
 
-    const resolvedLog = logs.find(log => log.action === "status_updated" && log.note === "in_progress -> resolved") || null
+    const resolvedLog = transitionLogs.find(log => log.note.includes("-> resolved")) || null
 
     const resolutionMinutes = workStartedLog && resolvedLog ? Math.max(0,Math.round((new Date(resolvedLog.created_at) - new Date(workStartedLog.created_at))/60000 )) : null
     
     const incidentDetail = {
         ...incident,
-        assignmentHistory: assignmentLogs,
+        assignmentHistory: logs,
         createdAt: incident.created_at,
         lastAssignedAt: lastAssignedLog ? lastAssignedLog.created_at : null,
         workStartedAt: workStartedLog ? workStartedLog.created_at : null,
@@ -216,7 +220,7 @@ async function assignIncidentToSelf(incidentId,userId,role) {
     
 }
 
-async function updatedTechnicianStatus(userId,role,incidentId,status) {
+async function updatedTechnicianStatus(userId,role,incidentId,status,note) {
 
     if(role !== "technician"){
         const error = new Error("Bu işlemi sadece teknisyen yapabilir")
@@ -267,12 +271,17 @@ async function updatedTechnicianStatus(userId,role,incidentId,status) {
 
     const result = await pool.query(statusQuery,[status,incidentId])
 
+    const trimmedNote = typeof note === "string" ? note.trim() : ""
+    const logNote = trimmedNote
+        ? `${currentStatus} -> ${status}\n${trimmedNote}`
+        : `${currentStatus} -> ${status}`
+
     try {
         await createIncidentLog({
             incidentId: incidentId,
             action: "status_updated",
             performedBy: userId,
-            note: `${currentStatus} -> ${status}`
+            note: logNote
         })
     } catch (e) {
         console.error("incident log error:",e)
@@ -368,12 +377,10 @@ async function adminStatus(userId,userRole,incidentId,status) {
         throw error
     }
     
-    const statusUpdateQuery = `
-    UPDATE incidents
-    SET status = $1,
-    updated_at = NOW()
-    WHERE id = $2
-    RETURNING * `
+    
+    const statusUpdateQuery = status === 'pending'
+        ? `UPDATE incidents SET status = $1, assigned_to = NULL, updated_at = NOW() WHERE id = $2 RETURNING *`
+        : `UPDATE incidents SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`
 
     const queryResult = await pool.query(statusUpdateQuery,[status,incidentId])
 
@@ -421,13 +428,22 @@ async function getActiveIncidents(userId,userRole,page,limit) {
 
     const offset = (page - 1) * limit
 
-    const countQuery = `
-    SELECT COUNT(*) FROM incidents
-    WHERE status IN ('pending','assigned','in_progress')
-    `
-    const countResult = await pool.query(countQuery)
-    const total = parseInt(countResult.rows[0].count,10)
-    const totalPages = Math.ceil(total/limit) 
+    let total;
+    if (userRole === "admin") {
+        const countResult = await pool.query(`
+            SELECT COUNT(*) FROM incidents
+            WHERE status IN ('pending','assigned','in_progress')
+        `)
+        total = parseInt(countResult.rows[0].count, 10)
+    } else {
+        const countResult = await pool.query(`
+            SELECT COUNT(*) FROM incidents
+            WHERE status = 'pending'
+            OR (assigned_to = $1 AND status IN ('assigned','in_progress'))
+        `, [userId])
+        total = parseInt(countResult.rows[0].count, 10)
+    }
+    const totalPages = Math.ceil(total / limit)
 
     const adminQuery = `
     SELECT incidents. *, hotels.name AS hotel_name , users.full_name AS technician_name
@@ -476,13 +492,22 @@ async function getIncidentHistory(userId,userRole,page,limit) {
 
     const offset = (page-1)*limit
 
-    const countQuery = `
-    SELECT COUNT(*) FROM incidents
-    WHERE status = 'resolved'
-    `
-    const countResult = await pool.query(countQuery)
-    const total = parseInt(countResult.rows[0].count,10)
-    const totalPages = Math.ceil(total/limit)
+    let total;
+    if (userRole === "admin") {
+        const countResult = await pool.query(`
+            SELECT COUNT(*) FROM incidents
+            WHERE status = 'resolved'
+        `)
+        total = parseInt(countResult.rows[0].count, 10)
+    } else {
+        const countResult = await pool.query(`
+            SELECT COUNT(*) FROM incidents
+            WHERE status = 'resolved'
+            AND assigned_to = $1
+        `, [userId])
+        total = parseInt(countResult.rows[0].count, 10)
+    }
+    const totalPages = Math.ceil(total / limit)
 
     if(userRole === "admin"){
         const adminQuery =`
